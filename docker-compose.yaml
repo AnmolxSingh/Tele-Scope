@@ -1,0 +1,106 @@
+networks:
+  observability-net:
+
+volumes:
+  grafana-data:
+  prometheus-data:
+  loki-data:
+
+services:
+  order-service:
+    build: ./observability-order-service
+    ports:
+      - "8080:8080"
+    environment:
+      - OTEL_PROPAGATORS=tracecontext,b3
+      - MY_LOGS_ENDPOINT=otel-collector:4318
+      - MY_TRACES_ENDPOINT=otel-collector:4317
+      - MY_METRICS_ENDPOINT=otel-collector:4318
+    networks:
+      - observability-net
+    depends_on:
+      - otel-collector
+
+  inventory-service:
+    build: ./observability-inventory-service
+    ports:
+      - "8081:8081"
+    environment:
+      - OTEL_PROPAGATORS=tracecontext,b3
+      - MY_LOGS_ENDPOINT=otel-collector:4318
+      - MY_TRACES_ENDPOINT=otel-collector:4317
+      - MY_METRICS_ENDPOINT=otel-collector:4318
+    networks:
+      - observability-net
+    depends_on:
+      - otel-collector
+
+  payment-service:
+    build: ./observability-payment-service
+    ports:
+      - "8082:8082"
+    environment:
+      - OTEL_PROPAGATORS=tracecontext,b3
+      - MY_LOGS_ENDPOINT=otel-collector:4318
+      - MY_TRACES_ENDPOINT=otel-collector:4317
+      - MY_METRICS_ENDPOINT=otel-collector:4318
+    networks:
+      - observability-net
+    depends_on:
+      - otel-collector
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - "4318:4318"
+      - "8889:8889"
+      - "9464:9464"
+    networks:
+      - observability-net
+    depends_on:
+      - loki
+
+  loki:
+    image: grafana/loki:latest
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - observability-net
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686" 
+      - "14250:14250"
+    networks:
+      - observability-net
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - grafana-data:/var/lib/grafana
+    networks:
+      - observability-net
+    depends_on:
+      - loki
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - observability-net
