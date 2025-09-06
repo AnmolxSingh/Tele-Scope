@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -113,6 +114,8 @@ func MakePayment(w http.ResponseWriter, r *http.Request) {
 		"amount":  req.Amount,
 		"status":  status,
 	}
+
+	slog.InfoContext(ctx, "Payment", status, status)
 
 	payments[string(rune(paymentID))] = payment
 

@@ -17,6 +17,7 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	//creating a resource
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
@@ -52,7 +53,7 @@ func main() {
 
 	r.Use(handler.MetricsMiddleware)
 
-	slog.Info("Payment Service running on :8082")
+	slog.InfoContext(ctx, "Payment Service running on :8082")
 	if err := http.ListenAndServe(":8082", r); err != nil {
 		slog.Error("failed to start server", "error", err)
 		os.Exit(1)

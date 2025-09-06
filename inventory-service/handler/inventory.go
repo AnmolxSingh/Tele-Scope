@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -83,6 +83,6 @@ func CheckInventory(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 
 	// Example: simulate inventory check
-	fmt.Println("Checking inventory for product...")
+	slog.InfoContext(ctx, "Checking inventory for product...")
 	w.Write([]byte("Inventory available"))
 }

@@ -8,7 +8,7 @@ volumes:
 
 services:
   order-service:
-    build: ./observability-order-service
+    build: ./order-service
     ports:
       - "8080:8080"
     environment:
@@ -22,7 +22,7 @@ services:
       - otel-collector
 
   inventory-service:
-    build: ./observability-inventory-service
+    build: ./inventory-service
     ports:
       - "8081:8081"
     environment:
@@ -36,7 +36,7 @@ services:
       - otel-collector
 
   payment-service:
-    build: ./observability-payment-service
+    build: ./payment-service
     ports:
       - "8082:8082"
     environment:
