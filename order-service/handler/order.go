@@ -17,14 +17,14 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
-// 1. Define your metrics globally.
+// defining metrics globally
 var (
 	meter               = otel.Meter("order-service/handler")
 	httpRequestsTotal   metric.Int64Counter
 	httpRequestDuration metric.Float64Histogram
 )
 
-// 2. Use the init() function to create the metric instruments.
+// init() function to create the metric instruments
 func init() {
 	var err error
 	httpRequestsTotal, err = meter.Int64Counter(
@@ -44,7 +44,7 @@ func init() {
 	}
 }
 
-// 3. Create a custom response writer to capture the status code.
+// custom response writer to capture the status code
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -59,7 +59,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// 4. Create the middleware function. This will be public so main.go can use it.
+// middleware function
 func MetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -86,7 +86,8 @@ var orders = make(map[string]map[string]interface{})
 // CreateOrder handles new orders
 func CreateOrder(w http.ResponseWriter, r *http.Request) {
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	// Optional: tracing span if using OpenTelemetry
+
+	//tracing span using OpenTelemetry
 	tr := otel.Tracer("order-service")
 	ctx, span := tr.Start(r.Context(), "CreateOrder")
 	defer span.End()
@@ -108,11 +109,13 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	request1, _ := http.NewRequestWithContext(ctx, "GET", "http://inventory-service:8081/inventory", nil)
+
 	// Send request
 	client := http.Client{
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
 		Timeout:   5 * time.Second,
 	}
+
 	resp1, err := client.Do(request1)
 	if err != nil {
 		// logging the error with context
@@ -135,10 +138,20 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	resp2, err := client.Do(request2)
 	if err != nil {
+		slog.ErrorContext(ctx, "failed to contact payment service",
+			"error", err,
+		)
 		http.Error(w, "failed to contact payment", http.StatusInternalServerError)
 		return
 	}
 	defer resp2.Body.Close()
+
+	// Check HTTP status
+	if resp1.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp1.Body)
+		http.Error(w, "inventory service error: "+string(bodyBytes), resp1.StatusCode)
+		return
+	}
 
 	// Check HTTP status
 	if resp2.StatusCode != http.StatusOK {
@@ -154,37 +167,30 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create order with input fields
+	//Create order with input fields
 	id := strconv.Itoa(rand.Intn(100000))
 	order := map[string]interface{}{
 		"id":        id,
 		"productId": req.ProductID,
 		"quantity":  req.Quantity,
 		"user":      req.User,
-		"status":    "created",
+		"status":    paymentResp["status"],
 	}
 
-	slog.InfoContext(ctx, "Order created successfully", "order_id", id)
+	if paymentResp["status"] != "success" {
+		slog.ErrorContext(ctx, "Payment failed, cannot create order",
+			"payment_status", paymentResp["status"],
+		)
+		return
+	}
 
-	// Store in memory
+	slog.InfoContext(ctx, "Order created successfully",
+		"order_id", id,
+	)
+
+	//Storing in memory
 	orders[id] = order
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(order)
 }
-
-// GetOrder returns order by ID
-// func GetOrder(w http.ResponseWriter, r *http.Request) {
-// 	tr := otel.Tracer("order-service")
-// 	_, span := tr.Start(r.Context(), "GetOrder")
-// 	vars := mux.Vars(r)
-// 	id := vars["id"]
-// 	order, exists := orders[id]
-// 	if !exists {
-// 		w.WriteHeader(http.StatusNotFound)
-// 		json.NewEncoder(w).Encode(map[string]string{"error": "Order not found"})
-// 		return
-// 	}
-// 	w.Header().Set("Content-Type", "application/json")
-// 	json.NewEncoder(w).Encode(order)
-// }

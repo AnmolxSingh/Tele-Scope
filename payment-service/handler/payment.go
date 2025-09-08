@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -14,14 +13,14 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// 1. Define your metrics globally.
+// metrics defined globally
 var (
 	meter               = otel.Meter("order-service/handler")
 	httpRequestsTotal   metric.Int64Counter
 	httpRequestDuration metric.Float64Histogram
 )
 
-// 2. Use the init() function to create the metric instruments.
+// the init() function to create the metric instruments
 func init() {
 	var err error
 	httpRequestsTotal, err = meter.Int64Counter(
@@ -41,7 +40,7 @@ func init() {
 	}
 }
 
-// 3. Create a custom response writer to capture the status code.
+// custom response writer to capture the status code
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -56,7 +55,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// 4. Create the middleware function. This will be public so main.go can use it.
+// the middleware function
 func MetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -98,12 +97,18 @@ func MakePayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("Processing payment")
+	slog.InfoContext(ctx, "Processing payment for order",
+		"order_id", req.OrderID,
+		"user", req.User,
+		"amount", req.Amount,
+		"status", "processing",
+	)
 
 	// Simulate payment processing
 	status := "success"
 	if rand.Intn(10) < 2 { // 20% chance of failure
 		status = "failed"
+		http.Error(w, "Payment failed", http.StatusInternalServerError)
 	}
 
 	paymentID := rand.Intn(100000)
@@ -115,7 +120,9 @@ func MakePayment(w http.ResponseWriter, r *http.Request) {
 		"status":  status,
 	}
 
-	slog.InfoContext(ctx, "Payment", status, status)
+	slog.InfoContext(ctx, "Payment status updated:",
+		"status", status,
+	)
 
 	payments[string(rune(paymentID))] = payment
 
