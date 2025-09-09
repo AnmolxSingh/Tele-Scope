@@ -15,8 +15,8 @@ Follow these steps to get the project up and running locally.
 
 ### 1. Clone the repository:
 ```
-git clone https://github.com/your-username/your-repo-name.git
-cd your-repo-name
+git clone https://github.com/AnmolxSingh/Tele-Scope.git
+cd Tele-Scope
 ```
 ### 2. Start the services:
 
